@@ -1,0 +1,48 @@
+from django.shortcuts import render
+from django.contrib import admin 
+from django.http import HttpResponse, Http404, HttpResponseRedirect
+from .models import Shortener
+from .forms import ShortenerForm 
+
+
+
+# Create your views here.
+
+def home_view(request):
+    template = 'urlshortener/home.html'
+    context = {}
+    context['form'] = ShortenerForm()
+    
+    if request.method == 'GET':
+        return render(request, template, context)
+    elif request.method == 'POST':
+        used_form = ShortenerForm(request.POST)
+        if used_form.is_valid():
+            shortened_object = used_form.save()
+            custom_shortcode = used_form.cleaned_data['custom_shortcode']
+            if custom_shortcode:
+                shortened_object.short_url = custom_shortcode
+            else:
+                shortened_object.short_url = None
+            shortened_object.save()
+            new_url = request.build_absolute_uri('/') + shortened_object.short_url
+            long_url = shortened_object.long_url
+            context['new_url'] = new_url
+            context['long_url'] = long_url
+            context['short_code'] = shortened_object.short_url
+            return render(request, template, context)
+        else:
+            context['errors'] = used_form.errors
+            # messages.error(request, "Form submission has errors. Please correct them.")
+        return render(request, template, context)
+
+def redirect_url_view(request, shortened_part):
+    if shortened_part == 'admin':
+        return admin.site.urls
+    
+    try:
+        shortener = Shortener.objects.get(short_url=shortened_part)
+        shortener.times_followed += 1
+        return HttpResponseRedirect(shortener.long_url)
+    except Shortener.DoesNotExist:
+        raise Http404('sorry, this link is broken :')
